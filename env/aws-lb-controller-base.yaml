@@ -1,0 +1,8 @@
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations: {} # Injected by pipeline via --set
+
+# This flag prevents the controller from fighting over cluster resources
+ingressClassConfig:
+  create: true

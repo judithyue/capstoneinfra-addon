@@ -1,0 +1,27 @@
+name: Auto-Increment Release Tag
+
+on:
+  push:
+    branches:
+      - main  # Triggers immediately when a PR is merged into main
+
+jobs:
+  create-tag:
+    name: Generate Semantic Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Gives the runner permission to push the new tag back to GitHub
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'  # Fetches all historical tags so the tool knows what number to increment
+
+      - name: Bump Version and Push Git Tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.64.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Provided automatically by GitHub
+          WITH_V: true                              # Prepends 'v' to the tag format (e.g., v1.0.0)
+          DEFAULT_BUMP: patch                       # If no keyword is found, default to incrementing the patch number
+          SEARCH_COMMIT_BODY: true                  # Forces it to scan the entire merge commit for your #patch keyword

@@ -1,0 +1,280 @@
+name: Terraform Environments
+
+on:
+  pull_request:
+    branches:
+      - dev
+  push:
+    branches:
+      - dev   # Code pushes/merges to dev still run apply automatically
+      - main  # Merges to main trigger apply to production infrastructure
+    tags:
+      - 'v*.*.*'  # SEMVER TRIGGER: Matches any semantic version tag (e.g., v1.0.0, v2.1.4)
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - main 
+      action:
+        description: "Run plan, apply or destroy"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+  security-scans:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'destroy'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.52.0
+          cache: true
+
+      - name: Run TFLint
+        run: tflint
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: .
+          additional_args: '--exclude aws-eks-no-public-cluster-access,aws-eks-no-public-cluster-access-to-cidr,aws-ec2-no-public-ip-subnet,aws-eks-encrypt-secrets,aws-ecr-enforce-immutable-repository,aws-eks-enable-control-plane-logging,aws-ec2-require-vpc-flow-logs-for-all-vpcs,aws-ecr-repository-customer-key'
+
+      - name: Run Checkov (bridgecrew)
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform
+          skip_check: CKV_AWS_18,CKV_AWS_28,CKV_AWS_37,CKV_AWS_38,CKV_AWS_39,CKV_AWS_58,CKV_AWS_119,CKV_AWS_130,CKV_AWS_136,CKV_AWS_144,CKV_AWS_145,CKV_AWS_157,CKV2_AWS_11,CKV2_AWS_12,CKV2_AWS_19,CKV2_AWS_61,CKV2_AWS_62
+
+  terraform-plan:
+    name: Terraform Plan / Destroy Plan
+    needs: security-scans
+    if: always() && (needs.security-scans.result == 'success' || needs.security-scans.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Resolve Environment Context
+        run: |
+          # 1. Check if this run is a manual main selection or an official version tag
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "main" ]; then
+            TARGET_ENV="main"
+          elif echo "${{ github.ref }}" | grep -q "^refs/tags/v"; then
+            TARGET_ENV="main"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET_ENV="${{ github.base_ref }}"
+          else
+            TARGET_ENV="${{ github.ref_name }}"
+          fi
+
+          # 2. Establish tfvars file suffix mappings (Tags point to production infrastructure)
+          if [ "$TARGET_ENV" = "main" ]; then
+            SUFFIX="prod"
+          else
+            SUFFIX="dev"
+          fi
+
+          echo "TF_ENV=$TARGET_ENV" >> $GITHUB_ENV
+          echo "TF_FILE_SUFFIX=$SUFFIX" >> $GITHUB_ENV
+
+      - name: Validate Environment Scope
+        run: |
+          if [ "${TF_ENV}" != "dev" ] && [ "${TF_ENV}" != "main" ]; then
+            echo "Unsupported branch/environment context: ${TF_ENV}"
+            exit 1
+          fi
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="env/backend-${{ env.TF_FILE_SUFFIX }}.tfvars" \
+            -reconfigure
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan (Deploy or Destroy)
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+            terraform plan -destroy -var-file="env/${{ env.TF_FILE_SUFFIX }}.tfvars" -out=tfplan
+          else
+            terraform plan -var-file="env/${{ env.TF_FILE_SUFFIX }}.tfvars" -out=tfplan
+          fi
+
+      - name: Save plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_FILE_SUFFIX }}
+          path: tfplan
+
+  terraform-apply:
+    name: Terraform Apply / Destroy Execution
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      (needs.terraform-plan.result == 'success') &&
+      (
+        github.event_name == 'push' || 
+        startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'))
+      )
+    environment: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.environment) || (github.event_name == 'pull_request' && github.base_ref) || (startsWith(github.ref, 'refs/tags/v') && 'main') || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Resolve Environment Context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "main" ]; then
+            TARGET_ENV="main"
+          elif echo "${{ github.ref }}" | grep -q "^refs/tags/v"; then
+            TARGET_ENV="main"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET_ENV="${{ github.base_ref }}"
+          else
+            TARGET_ENV="${{ github.ref_name }}"
+          fi
+
+          if [ "$TARGET_ENV" = "main" ]; then
+            SUFFIX="prod"
+          else
+            SUFFIX="dev"
+          fi
+
+          echo "TF_ENV=$TARGET_ENV" >> $GITHUB_ENV
+          echo "TF_FILE_SUFFIX=$SUFFIX" >> $GITHUB_ENV
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ env.TF_FILE_SUFFIX }}
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="env/backend-${{ env.TF_FILE_SUFFIX }}.tfvars" \
+            -reconfigure
+
+      # PRE-DESTROY CLEANUP (Only fires if explicitly hitting destroy)
+      # This runs BEFORE 'terraform apply' wipes the EKS cluster resources out of existence!
+      - name: Pre-Destroy Kubernetes Cleanup
+        if: github.event.inputs.action == 'destroy' 
+        run: |
+          # Connect to the active cluster that is about to be terminated
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          echo "Connecting to EKS cluster for decommissioning: $CLUSTER_NAME"
+          aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name "$CLUSTER_NAME"
+          
+          echo "Wiping Kubernetes LoadBalancers to let ExternalDNS clean Route 53 records"
+          # deletes all LoadBalancer services across all namespaces to trigger DNS deletion hooks
+          kubectl delete service --all --all-namespaces
+          
+          echo "Waiting 60 seconds for ExternalDNS to sync deletions to Route 53 zones..."
+          sleep 60
+
+      - name: Terraform apply (Deploy or Destroy)
+        run: terraform apply -auto-approve tfplan
+
+      - name: Update Kubeconfig Context
+        run: |
+          # ask Terraform directly what cluster it just managed
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          echo "Connecting to dynamically resolved EKS cluster: $CLUSTER_NAME"
+          
+          aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name $CLUSTER_NAME
+
+      - name: Deploy ExternalDNS via Helm
+        if: github.event.inputs.action != 'destroy' #Skips Helm deployment if you are tearing down the infra
+        run: |
+          # Add and refresh the chart repository on the local runner execution space
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+ 
+          # Fetch the absolute exact Role ARN directly from the active Terraform state outputs
+          DYNAMIC_ROLE_ARN=$(terraform output -raw external_dns_iam_role_arn)
+          echo "Injecting Role ARN: $DYNAMIC_ROLE_ARN"
+          
+          # If TF_FILE_SUFFIX is "dev", this loads values-dev.yaml. 
+          # If TF_FILE_SUFFIX is "prod", it loads values-prod.yaml
+          helm upgrade --install external-dns bitnami/external-dns \
+            --namespace kube-system \
+            -f env/values-base.yaml \
+            -f env/values-${{ env.TF_FILE_SUFFIX }}.yaml \
+            --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$DYNAMIC_ROLE_ARN"  
+
+        # deploy aws alb controller (Only runs during an active DEPLOYMENT)
+      - name: Deploy AWS Load Balancer Controller via Helm
+        if: github.event.inputs.action != 'destroy'
+        run: |
+          # Add and update the official EKS Helm repository
+          helm repo add eks https://aws.github.io/eks-charts
+          helm repo update
+ 
+          # Extract dynamic values from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          AWS_LB_ROLE_ARN=$(terraform output -raw aws_lb_controller_role_arn)
+          
+          echo "Installing AWS LB Controller for Cluster: $CLUSTER_NAME"
+          echo "Using Role ARN: $AWS_LB_ROLE_ARN"
+          
+          # Install/Upgrade the controller
+          # will ONLY monitor and configure subnets tagged for this specific cluster name
+          helm upgrade --install aws-load-balancer-controller-${{ env.TF_FILE_SUFFIX }} eks/aws-load-balancer-controller \
+            --namespace kube-system \
+            -f env/aws-lb-controller-base.yaml \
+            --set clusterName="$CLUSTER_NAME" \
+            --set ingressClassName="alb" \
+            --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$AWS_LB_ROLE_ARN"
