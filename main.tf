@@ -238,15 +238,16 @@ resource "aws_eks_node_group" "node-ec2" {
 # ADDONS & OIDC
 ################################################################################
 
-# 1. Fetch the TLS certificate from the EKS OIDC issuer URL
-data "aws_tls_certificate" "eks" {
+# Fetch the TLS certificate from the EKS OIDC issuer URL
+data "tls_certificate" "eks" {
+  provider = tls
   url = aws_eks_cluster.eks-cluster.identity[0].oidc[0].issuer
 }
 
 resource "aws_iam_openid_connect_provider" "eks_oidc_provider" {
   url             = aws_eks_cluster.eks-cluster.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.aws_tls_certificate.eks.certificates[0].sha1_fingerprint]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 
   tags = merge(var.common_tags, {
     Name = "${var.naming_prefix}-eks-oidc-provider"
