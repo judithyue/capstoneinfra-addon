@@ -291,7 +291,7 @@ resource "aws_iam_policy" "external_dns_policy" {
       {
         Effect = "Allow"
         Action = [
-          "route53:ListTagsForResource" #This API CANNOT be restricted by AWS to a specific zone ARN
+          "route53:ListHostedZones" #This API CANNOT be restricted by AWS to a specific zone ARN
         ]
         Resource = ["*"]
       }
