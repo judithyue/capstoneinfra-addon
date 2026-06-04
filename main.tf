@@ -280,16 +280,18 @@ resource "aws_iam_policy" "external_dns_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["route53:ChangeResourceRecordSets"]
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeResourceRecordSets",
+          "route53:ListResourceRecordSets",
+          "route53:ListTagsForResource"
+        ]
         Resource = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.selected.zone_id}"]
       },
       {
         Effect = "Allow"
         Action = [
-          "route53:ListHostedZones",
-          "route53:ListResourceRecordSets",
-          "route53:ListTagsForResource"
+          "route53:ListTagsForResource" #This API CANNOT be restricted by AWS to a specific zone ARN
         ]
         Resource = ["*"]
       }
