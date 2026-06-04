@@ -267,6 +267,11 @@ jobs:
           # Add and update the official EKS Helm repository
           helm repo add eks https://aws.github.io/eks-charts
           helm repo update
+          
+          # Forcefully purge stale validating/mutating webhooks to clear out bad certificates
+          echo "Clearing legacy webhook definitions to prevent x509 TLS certificate errors..."
+          kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
+          kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
  
           # Extract dynamic values from Terraform outputs
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
