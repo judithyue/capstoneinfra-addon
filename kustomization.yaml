@@ -1,0 +1,17 @@
+resources:
+  - ingress.yaml
+
+patches:
+  - target:
+      kind: Ingress
+      name: voting-app-ingress
+    patch: |
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
+        value: "voting-prod.sctp-sandbox.com, result-prod.sctp-sandbox.com"
+      - op: replace
+        path: /spec/rules/0/host
+        value: voting-prod.sctp-sandbox.com
+      - op: replace
+        path: /spec/rules/1/host
+        value: result-prod.sctp-sandbox.com

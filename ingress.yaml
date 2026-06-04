@@ -10,27 +10,27 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     
     # triggers ExternalDNS to map both domains to this single ALB automatically!
-    external-dns.alpha.kubernetes.io/hostname: "voting.sctp.sandbox.com, result.sctp.sandbox.com"
+    external-dns.alpha.kubernetes.io/hostname: "voting-dev.sctp-sandbox.com, result-dev.sctp-sandbox.com"
 spec:
   ingressClassName: alb
   rules:
-    - host: voting.sctp.sandbox.com
+    - host: voting-dev.sctp-sandbox.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: vote # Routes voting traffic to your vote service
+                name: vote-svc # Routes voting traffic to your vote service
                 port:
                   number: 8080
-    - host: result.sctp.sandbox.com
+    - host: result-dev.sctp-sandbox.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: result # Routes result traffic to your result service
+                name: result-svc # Routes result traffic to your result service
                 port:
                   number: 8081

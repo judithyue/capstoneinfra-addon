@@ -175,6 +175,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: '1.5.7'
+          terraform_wrapper: false # remove that GitHub Action wrapper output so 'terraform output' returns raw, clean strings
 
       - name: Resolve Environment Context
         run: |
@@ -278,3 +279,16 @@ jobs:
             --set clusterName="$CLUSTER_NAME" \
             --set ingressClassName="alb" \
             --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$AWS_LB_ROLE_ARN"
+
+      - name: Deploy Application Ingress
+        if: github.event.inputs.action != 'destroy'
+        run: |
+          if [ "${{ env.TF_FILE_SUFFIX }}" = "prod" ]; then
+            echo "Production scope detected. Compiling Kustomize patches..."
+            # Applies the patches and deploys directly to production
+            kubectl apply -k .
+          else
+            echo "Development scope detected. Deploying raw ingress base..."
+            # Bypasses patches and deploys your standard dev layout
+            kubectl apply -f ingress.yaml
+          fi
