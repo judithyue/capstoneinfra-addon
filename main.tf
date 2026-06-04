@@ -268,7 +268,7 @@ resource "aws_eks_addon" "addons" {
 
 # Define the Route 53 Access Policy
 data "aws_route53_zone" "selected" {
-  name = "sctp.sandbox.com."
+  name         = "sctp.sandbox.com."
   private_zone = false
 }
 
