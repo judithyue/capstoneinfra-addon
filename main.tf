@@ -267,6 +267,11 @@ resource "aws_eks_addon" "addons" {
 ################################################################################
 
 # Define the Route 53 Access Policy
+data "aws_route53_zone" "selected" {
+  name = "sctp.sandbox.com."
+  private_zone = false
+}
+
 resource "aws_iam_policy" "external_dns_policy" {
   name        = "${var.naming_prefix}-AllowExternalDNSUpdates"
   description = "Allows EKS ExternalDNS pod to manage Route 53 resource record sets"
@@ -277,7 +282,7 @@ resource "aws_iam_policy" "external_dns_policy" {
       {
         Effect   = "Allow"
         Action   = ["route53:ChangeResourceRecordSets"]
-        Resource = ["arn:aws:route53:::hostedzone/*"]
+        Resource = ["arn:aws:route53:::hostedzone/${data.aws_route53_zone.selected.zone_id}"]
       },
       {
         Effect = "Allow"
