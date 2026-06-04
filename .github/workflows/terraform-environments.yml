@@ -254,6 +254,9 @@ jobs:
             --namespace kube-system \
             -f env/values-base.yaml \
             -f env/values-${{ env.TF_FILE_SUFFIX }}.yaml \
+            --set image.registry="public.ecr.aws" \
+            --set image.repository="bitnami/external-dns" \
+            --set image.tag="0.14.2" \
             --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$DYNAMIC_ROLE_ARN"  
 
         # deploy aws alb controller (Only runs during an active DEPLOYMENT)
@@ -280,15 +283,20 @@ jobs:
             --set ingressClassName="alb" \
             --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$AWS_LB_ROLE_ARN"
 
+      - name: Wait for AWS Load Balancer Controller
+        if: github.event.inputs.action != 'destroy'
+        run: |
+          echo "Waiting for AWS Load Balancer Controller pods to reach Ready state..."
+          kubectl rollout status deployment/aws-load-balancer-controller-${{ env.TF_FILE_SUFFIX }} -n kube-system --timeout=90s
+
+      # deploy application ingress rules via Kustomize Overlays
       - name: Deploy Application Ingress
         if: github.event.inputs.action != 'destroy'
         run: |
           if [ "${{ env.TF_FILE_SUFFIX }}" = "prod" ]; then
             echo "Production scope detected. Compiling Kustomize patches..."
-            # Applies the patches and deploys directly to production
             kubectl apply -k .
           else
             echo "Development scope detected. Deploying raw ingress base..."
-            # Bypasses patches and deploys your standard dev layout
             kubectl apply -f ingress.yaml
           fi
