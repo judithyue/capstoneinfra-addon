@@ -241,7 +241,7 @@ resource "aws_eks_node_group" "node-ec2" {
 # Fetch the TLS certificate from the EKS OIDC issuer URL
 data "tls_certificate" "eks" {
   provider = tls
-  url = aws_eks_cluster.eks-cluster.identity[0].oidc[0].issuer
+  url      = aws_eks_cluster.eks-cluster.identity[0].oidc[0].issuer
 }
 
 resource "aws_iam_openid_connect_provider" "eks_oidc_provider" {
