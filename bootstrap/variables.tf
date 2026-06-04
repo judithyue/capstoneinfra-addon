@@ -7,7 +7,7 @@ variable "backend_bucket" {
   type    = string
   default = "hq-mightycapstone-terraform-state"
 }
-  
+
 variable "lock_table_name" {
   type    = string
   default = "hq-mightycapstone-terraform-locks"

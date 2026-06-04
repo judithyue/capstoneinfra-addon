@@ -13,7 +13,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-resource "aws_s3_bucket" "remote_state_bucket" {
+resource "aws_s3_bucket" "remote_state" {
   bucket        = var.backend_bucket
   force_destroy = true
 

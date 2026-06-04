@@ -306,7 +306,7 @@ data "aws_iam_policy_document" "external_dns_assume_role" {
       test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.eks_oidc_provider.url, "https://", "")}:sub"
       # This binds the role strictly to the 'external-dns' service account name in the 'kube-system' namespace
-      values   = ["system:serviceaccount:kube-system:external-dns"]
+      values = ["system:serviceaccount:kube-system:external-dns"]
     }
 
     condition {
