@@ -95,7 +95,6 @@ jobs:
 
       - name: Resolve Environment Context
         run: |
-          # 1. Check if this run is a manual main selection or an official version tag
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "main" ]; then
             TARGET_ENV="main"
           elif echo "${{ github.ref }}" | grep -q "^refs/tags/v"; then
@@ -106,7 +105,6 @@ jobs:
             TARGET_ENV="${{ github.ref_name }}"
           fi
 
-          # 2. Establish tfvars file suffix mappings (Tags point to production infrastructure)
           if [ "$TARGET_ENV" = "main" ]; then
             SUFFIX="prod"
           else
@@ -176,7 +174,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: '1.5.7'
-          terraform_wrapper: false # remove that GitHub Action wrapper output so 'terraform output' returns raw, clean strings
+          terraform_wrapper: false
 
       - name: Resolve Environment Context
         run: |
@@ -199,58 +197,52 @@ jobs:
           echo "TF_ENV=$TARGET_ENV" >> $GITHUB_ENV
           echo "TF_FILE_SUFFIX=$SUFFIX" >> $GITHUB_ENV
 
-      - name: Download plan artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan-${{ env.TF_FILE_SUFFIX }}
-
       - name: Terraform init
         run: |
           terraform init \
             -backend-config="env/backend-${{ env.TF_FILE_SUFFIX }}.tfvars" \
             -reconfigure
 
-      # PRE-DESTROY CLEANUP (Only fires if explicitly hitting destroy)
-      # This runs BEFORE 'terraform apply' wipes the EKS cluster resources out of existence!
+      # PRE-DESTROY KUBERNETES CLEANUP (Fires only on manual destroy action)
       - name: Pre-Destroy Kubernetes Cleanup
         if: github.event.inputs.action == 'destroy' 
         run: |
-          # Connect to the active cluster that is about to be terminated
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
           echo "Connecting to EKS cluster for decommissioning: $CLUSTER_NAME"
           aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name "$CLUSTER_NAME"
           
-          echo "Wiping Kubernetes LoadBalancers to let ExternalDNS clean Route 53 records"
-          # deletes all LoadBalancer services across all namespaces to trigger DNS deletion hooks
+          echo "Wiping Kubernetes LoadBalancers to let ExternalDNS clean Route 53 records..."
           kubectl delete service --all --all-namespaces
           
           echo "Waiting 60 seconds for ExternalDNS to sync deletions to Route 53 zones..."
           sleep 60
 
+      # Run a real-time apply/destroy using the context values to completely bypass stale signatures
       - name: Terraform apply (Deploy or Destroy)
-        run: terraform apply -auto-approve tfplan
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+            echo "Executing explicit terraform destroy..."
+            terraform apply -destroy -auto-approve -var-file="env/${{ env.TF_FILE_SUFFIX }}.tfvars"
+          else
+            echo "Executing fresh runtime terraform apply..."
+            terraform apply -auto-approve -var-file="env/${{ env.TF_FILE_SUFFIX }}.tfvars"
+          fi
 
       - name: Update Kubeconfig Context
         run: |
-          # ask Terraform directly what cluster it just managed
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
           echo "Connecting to dynamically resolved EKS cluster: $CLUSTER_NAME"
-          
           aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name $CLUSTER_NAME
 
       - name: Deploy ExternalDNS via Helm
-        if: github.event.inputs.action != 'destroy' #Skips Helm deployment if you are tearing down the infra
+        if: github.event.inputs.action != 'destroy'
         run: |
-          # Add and refresh the chart repository on the local runner execution space
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo update
  
-          # Fetch the absolute exact Role ARN directly from the active Terraform state outputs
           DYNAMIC_ROLE_ARN=$(terraform output -raw external_dns_iam_role_arn)
           echo "Injecting Role ARN: $DYNAMIC_ROLE_ARN"
           
-          # If TF_FILE_SUFFIX is "dev", this loads values-dev.yaml. 
-          # If TF_FILE_SUFFIX is "prod", it loads values-prod.yaml
           helm upgrade --install external-dns bitnami/external-dns \
             --namespace kube-system \
             -f env/values-base.yaml \
@@ -261,28 +253,22 @@ jobs:
             --set global.security.allowInsecureImages=true \
             --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$DYNAMIC_ROLE_ARN"  
 
-        # deploy aws alb controller (Only runs during an active DEPLOYMENT)
       - name: Deploy AWS Load Balancer Controller via Helm
         if: github.event.inputs.action != 'destroy'
         run: |
-          # Add and update the official EKS Helm repository
           helm repo add eks https://aws.github.io/eks-charts
           helm repo update
           
-          # Forcefully purge stale validating/mutating webhooks to clear out bad certificates
           echo "Clearing legacy webhook definitions to prevent x509 TLS certificate errors..."
           kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
           kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
  
-          # Extract dynamic values from Terraform outputs
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
           AWS_LB_ROLE_ARN=$(terraform output -raw aws_lb_controller_role_arn)
           
           echo "Installing AWS LB Controller for Cluster: $CLUSTER_NAME"
           echo "Using Role ARN: $AWS_LB_ROLE_ARN"
           
-          # Install/Upgrade the controller
-          # will ONLY monitor and configure subnets tagged for this specific cluster name
           helm upgrade --install aws-load-balancer-controller-${{ env.TF_FILE_SUFFIX }} eks/aws-load-balancer-controller \
             --namespace kube-system \
             -f env/aws-lb-controller-base.yaml \
@@ -296,7 +282,6 @@ jobs:
           echo "Waiting for AWS Load Balancer Controller pods to reach Ready state..."
           kubectl rollout status deployment/aws-load-balancer-controller-${{ env.TF_FILE_SUFFIX }} -n kube-system --timeout=90s
 
-      # deploy application ingress rules via Kustomize Overlays
       - name: Deploy Application Ingress
         if: github.event.inputs.action != 'destroy'
         run: |
