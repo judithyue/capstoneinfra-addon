@@ -62,6 +62,7 @@ jobs:
       - name: Run tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           working_directory: .
           additional_args: '--exclude aws-eks-no-public-cluster-access,aws-eks-no-public-cluster-access-to-cidr,aws-ec2-no-public-ip-subnet,aws-eks-encrypt-secrets,aws-ecr-enforce-immutable-repository,aws-eks-enable-control-plane-logging,aws-ec2-require-vpc-flow-logs-for-all-vpcs,aws-ecr-repository-customer-key'
 
