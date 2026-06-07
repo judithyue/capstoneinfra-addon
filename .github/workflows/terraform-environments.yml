@@ -234,6 +234,10 @@ jobs:
           echo "Connecting to dynamically resolved EKS cluster: $CLUSTER_NAME"
           aws eks update-kubeconfig --region ${{ vars.AWS_REGION }} --name $CLUSTER_NAME
 
+          echo "Clearing legacy webhook definitions to prevent x509 TLS certificate errors..."
+          kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
+          kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
+
       - name: Deploy ExternalDNS via Helm
         if: github.event.inputs.action != 'destroy'
         run: |
@@ -259,10 +263,6 @@ jobs:
           helm repo add eks https://aws.github.io/eks-charts
           helm repo update
           
-          echo "Clearing legacy webhook definitions to prevent x509 TLS certificate errors..."
-          kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
-          kubectl delete mutatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found=true
- 
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
           AWS_LB_ROLE_ARN=$(terraform output -raw aws_lb_controller_role_arn)
           
