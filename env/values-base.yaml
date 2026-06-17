@@ -13,3 +13,4 @@ txtOwnerId: "mightycapstone-eks-cluster" # Tracks ownership of records in Route 
 serviceAccount:
   create: true
   name: external-dns
+  automountServiceAccountToken: true # <-- Fixes the token mounting issue globally

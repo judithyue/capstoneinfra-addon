@@ -13,10 +13,14 @@ variable "lock_table_name" {
   default = "hq-mightycapstone-terraform-locks"
 }
 
+variable "environment" {
+  type    = string
+  default = "dev"
+}
+
 variable "common_tags" {
   type = map(string)
   default = {
     Project = "hq-venture"
-    Stage   = "Dev"
   }
 }

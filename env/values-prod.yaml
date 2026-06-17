@@ -1,2 +1,9 @@
-domainFilters:
-  - sctp-sandbox.com
+txtOwnerId: "hq-prod-eks-cluster"
+
+# Limits ExternalDNS to only touch prod records
+domainFilter:
+  - sctp-sandbox.com      # Change to your production domain
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::255945442255:role/hq-prod-EKSExternalDNSRole" # Your prod IAM role

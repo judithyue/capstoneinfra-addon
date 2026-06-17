@@ -18,7 +18,8 @@ resource "aws_s3_bucket" "remote_state" {
   force_destroy = true
 
   tags = merge(var.common_tags, {
-    Name = var.backend_bucket
+    Name        = var.backend_bucket
+    Environment = var.environment
   })
 }
 
@@ -63,7 +64,8 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 
   tags = merge(var.common_tags, {
-    Name = var.lock_table_name
+    Name        = var.lock_table_name
+    Environment = var.environment
   })
 }
 
