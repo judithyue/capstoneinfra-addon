@@ -251,7 +251,8 @@ jobs:
           DYNAMIC_ROLE_ARN=$(terraform output -raw external_dns_iam_role_arn)
           echo "Injecting Role ARN: $DYNAMIC_ROLE_ARN"
           
-          helm upgrade --install external-dns bitnami/external-dns \
+          helm upgrade --install external-dns oci://public.ecr.aws/bitnamicharts/external-dns \
+            --version "9.0.3" \
             --namespace kube-system \
             -f env/values-base.yaml \
             -f env/values-${{ env.TF_FILE_SUFFIX }}.yaml \
