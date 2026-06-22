@@ -195,6 +195,11 @@ resource "aws_eks_cluster" "eks-cluster" {
   role_arn = aws_iam_role.EKSClusterRole.arn
   version  = var.cluster_config.version
 
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
   tags = merge(var.common_tags, {
     Name = var.cluster_config.name
   })
@@ -523,7 +528,7 @@ resource "aws_eks_access_entry" "github_actions" {
 # Grant cluster-admin permissions to that entry
 resource "aws_eks_access_policy_association" "github_actions_admin" {
   cluster_name  = aws_eks_cluster.eks-cluster.name
-  policy_arn    = "arn:aws:iam::aws:policy/AmazonEKSClusterAdminPolicy"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
   principal_arn = aws_iam_role.github_actions_role.arn
 
   access_scope {
