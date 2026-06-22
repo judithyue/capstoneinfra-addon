@@ -431,14 +431,12 @@ resource "aws_ecr_repository" "ecr" {
 # GITHUB ACTIONS OIDC IDENTITY PROVIDER
 ################################################################################
 
-# 1. Fetch GitHub's OIDC TLS Certificate to verify its identity thumbprint
-data "tls_certificate" "github" {
-  url = "https://token.actions.githubusercontent.com"
-}
-
+# Fetch GitHub's OIDC TLS Certificate to verify its identity thumbprint
 # Create the OIDC Provider in AWS IAM (note: 1 github provider per AWS account, so this is a one-time setup)
 # Look up the EXISTING global GitHub OIDC provider instead of creating a new onedata "aws_iam_openid_connect_provider" "github_provider" {
-
+data "aws_iam_openid_connect_provider" "github_provider" {
+  url = "https://token.actions.githubusercontent.com"
+}
 
 # Create the dedicated IAM Role your GitHub Actions runner will assume
 resource "aws_iam_role" "github_actions_role" {
@@ -472,7 +470,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
     }
 
     principals {
-      identifiers = [aws_iam_openid_connect_provider.github_provider.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github_provider.arn]
       type        = "Federated"
     }
   }
