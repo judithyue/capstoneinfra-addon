@@ -436,18 +436,11 @@ data "tls_certificate" "github" {
   url = "https://token.actions.githubusercontent.com"
 }
 
-# 2. Create the OIDC Provider in AWS IAM
-resource "aws_iam_openid_connect_provider" "github_provider" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
+# Create the OIDC Provider in AWS IAM (note: 1 github provider per AWS account, so this is a one-time setup)
+# Look up the EXISTING global GitHub OIDC provider instead of creating a new onedata "aws_iam_openid_connect_provider" "github_provider" {
 
-  tags = merge(var.common_tags, {
-    Name = "${var.naming_prefix}-github-oidc-provider"
-  })
-}
 
-# 3. Create the dedicated IAM Role your GitHub Actions runner will assume
+# Create the dedicated IAM Role your GitHub Actions runner will assume
 resource "aws_iam_role" "github_actions_role" {
   name               = "${var.naming_prefix}-GitHubActionsDeploymentRole"
   assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
@@ -457,7 +450,7 @@ resource "aws_iam_role" "github_actions_role" {
   })
 }
 
-# 4. Define the strict Trust Policy for GitHub Actions
+# Define the strict Trust Policy for GitHub Actions
 data "aws_iam_policy_document" "github_actions_assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
