@@ -426,3 +426,116 @@ resource "aws_ecr_repository" "ecr" {
     Name = "${var.naming_prefix}-ecr-repo"
   })
 }
+
+################################################################################
+# GITHUB ACTIONS OIDC IDENTITY PROVIDER
+################################################################################
+
+# 1. Fetch GitHub's OIDC TLS Certificate to verify its identity thumbprint
+data "tls_certificate" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+# 2. Create the OIDC Provider in AWS IAM
+resource "aws_iam_openid_connect_provider" "github_provider" {
+  url             = "https://token.actions.githubusercontent.com"
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
+
+  tags = merge(var.common_tags, {
+    Name = "${var.naming_prefix}-github-oidc-provider"
+  })
+}
+
+# 3. Create the dedicated IAM Role your GitHub Actions runner will assume
+resource "aws_iam_role" "github_actions_role" {
+  name               = "${var.naming_prefix}-GitHubActionsDeploymentRole"
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  tags = merge(var.common_tags, {
+    Name = "${var.naming_prefix}-github-actions-role"
+  })
+}
+
+# 4. Define the strict Trust Policy for GitHub Actions
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    # Restricts token validation down to the official GitHub OIDC issuer
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    # SECURITY LOCK: Restricts access ONLY to your specific GitHub repository
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      # Replace YOUR_GITHUB_ORGANIZATION_OR_USERNAME and YOUR_REPO_NAME with your exact setup
+      values = ["repo:judithyue/example-voting-app:*"]
+    }
+
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.github_provider.arn]
+      type        = "Federated"
+    }
+  }
+}
+
+# Attach Administrative permissions to manage your ECR and EKS environments
+resource "aws_iam_role_policy_attachment" "github_ecr_poweruser" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+  role       = aws_iam_role.github_actions_role.name
+}
+
+# Output the exact Role ARN you need to paste into your GitHub Repository Secrets
+output "github_actions_role_arn" {
+  description = "Save this value into your GitHub secret named AWS_ROLE_TO_ASSUME"
+  value       = aws_iam_role.github_actions_role.arn
+}
+
+# Create a custom policy allowing GitHub to read EKS Cluster metadata
+resource "aws_iam_policy" "github_eks_describe_policy" {
+  name        = "${var.naming_prefix}-GitHubEKSDescribePolicy"
+  description = "Allows GitHub Actions runner to fetch EKS cluster configurations"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster"
+        ]
+        Resource = [aws_eks_cluster.eks-cluster.arn]
+      }
+    ]
+  })
+}
+
+# Attach it to your existing GitHub Actions IAM role
+resource "aws_iam_role_policy_attachment" "github_eks_attach" {
+  policy_arn = aws_iam_policy.github_eks_describe_policy.arn
+  role       = aws_iam_role.github_actions_role.name
+}
+
+# Create an EKS Access Entry linking your GitHub Role to the cluster
+resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = aws_eks_cluster.eks-cluster.name
+  principal_arn = aws_iam_role.github_actions_role.arn
+  type          = "STANDARD"
+}
+
+# Grant cluster-admin permissions to that entry
+resource "aws_eks_access_policy_association" "github_actions_admin" {
+  cluster_name  = aws_eks_cluster.eks-cluster.name
+  policy_arn    = "arn:aws:iam::aws:policy/AmazonEKSClusterAdminPolicy"
+  principal_arn = aws_iam_role.github_actions_role.arn
+
+  access_scope {
+    type = "cluster"
+  }
+}
