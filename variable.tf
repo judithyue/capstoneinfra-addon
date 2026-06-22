@@ -69,3 +69,9 @@ variable "node_groups" {
 variable "addons" {
   type = map(any)
 }
+
+variable "github_token" {
+  type        = string
+  description = "GitHub Personal Access Token (PAT) for GitHub provider authentication"
+  sensitive   = true
+}

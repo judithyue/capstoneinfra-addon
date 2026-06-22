@@ -75,6 +75,8 @@ jobs:
 
   terraform-plan:
     name: Terraform Plan / Destroy Plan
+    env:
+      TF_VAR_github_token: ${{ secrets.INFRA_GITHUB_PAT }}
     needs: security-scans
     if: always() && (needs.security-scans.result == 'success' || needs.security-scans.result == 'skipped')
     runs-on: ubuntu-latest
@@ -219,6 +221,8 @@ jobs:
 
       # Run a real-time apply/destroy using the context values to completely bypass stale signatures
       - name: Terraform apply (Deploy or Destroy)
+        env:
+          TF_VAR_github_token: ${{ secrets.INFRA_GITHUB_PAT }}
         run: |
           if [ "${{ github.event.inputs.action }}" = "destroy" ]; then
             echo "Executing explicit terraform destroy..."

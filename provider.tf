@@ -14,9 +14,18 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
 }
 
 provider "aws" {
   region = var.aws_region
+}
+
+# Configure the GitHub Provider using a Personal Access Token (PAT)
+provider "github" {
+  token = var.github_token # You will pass this token into your infra pipeline
 }
