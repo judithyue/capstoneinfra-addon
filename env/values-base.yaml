@@ -15,7 +15,6 @@ env:
     value: ap-southeast-1 
 
 policy: sync              # Automatically creates AND deletes records when apps are removed
-registry: txt
 txtOwnerId: "mightycapstone-eks-cluster" # Tracks ownership of records in Route 53
 
 serviceAccount:
