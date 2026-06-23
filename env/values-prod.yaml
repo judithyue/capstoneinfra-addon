@@ -4,6 +4,8 @@ txtOwnerId: "hq-prod-eks-cluster"
 domainFilter:
   - sctp-sandbox.com      # Change to your production domain
 
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::255945442255:role/hq-prod-EKSExternalDNSRole" # Your prod IAM role
+# REMOVED: serviceAccount annotations block deleted here 
+# because your GitHub Actions Pipeline injects this dynamically!
+#serviceAccount:
+#  annotations:
+#    eks.amazonaws.com/role-arn: "arn:aws:iam::255945442255:role/hq-prod-EKSExternalDNSRole" # Your prod IAM role

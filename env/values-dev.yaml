@@ -4,6 +4,9 @@ txtOwnerId: "hq-dev-eks-cluster"
 domainFilter:
   - dev.sctp-sandbox.com  # Change to your exact dev domain/subdomain
 
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: "arn:aws:iam::255945442255:role/hq-dev-EKSExternalDNSRole"
+# REMOVED: serviceAccount annotations block deleted here 
+# because your GitHub Actions Pipeline injects this dynamically!
+
+#serviceAccount:
+#  annotations:
+#    eks.amazonaws.com/role-arn: "arn:aws:iam::255945442255:role/hq-dev-EKSExternalDNSRole"
