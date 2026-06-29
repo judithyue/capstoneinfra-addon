@@ -551,11 +551,11 @@ resource "github_actions_variable" "aws_role_to_assume" {
 
 # Create or update a GitHub Actions Repository Variable for the ECR Name dynamically
 resource "github_actions_variable" "ecr_repository_name" {
-  repository    = "example-voting-app"
+  repository = "example-voting-app"
 
   # If var.naming_prefix is "hq-dev", this creates: ECR_REPOSITORY_HQ_DEV
   variable_name = upper("ECR_REPOSITORY_${var.naming_prefix}")
 
   # Pass your actual created repository name variable here (e.g., hq-eks-repo-dev)
-  value         = "hq-eks-repo-${contains(split("-", var.naming_prefix), "dev") ? "dev" : "prod"}"
+  value = "hq-eks-repo-${contains(split("-", var.naming_prefix), "dev") ? "dev" : "prod"}"
 }
