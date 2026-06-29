@@ -553,9 +553,9 @@ resource "github_actions_variable" "aws_role_to_assume" {
 resource "github_actions_variable" "ecr_repository_name" {
   repository = "example-voting-app"
 
-  # If var.naming_prefix is "hq-dev", this creates: ECR_REPOSITORY_HQ_DEV
+  # If var.naming_prefix is "mine-dev", this creates: ECR_REPOSITORY_MINE_DEV
   variable_name = upper("ECR_REPOSITORY_${var.naming_prefix}")
 
-  # Pass your actual created repository name variable here (e.g., hq-eks-repo-dev)
-  value = "hq-eks-repo-${contains(split("-", var.naming_prefix), "dev") ? "dev" : "prod"}"
+  # Pass your actual created repository name variable here (e.g., mine-eks-repo-dev)
+  value = "mine-eks-repo-${contains(split("-", var.naming_prefix), "dev") ? "dev" : "prod"}"
 }

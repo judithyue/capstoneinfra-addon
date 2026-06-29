@@ -1,5 +1,5 @@
 aws_region    = "ap-southeast-1"
-naming_prefix = "mine-prod"
+naming_prefix = "mine_prod"
 
 cluster_config = {
   name    = "mine-eks-cluster-prod"
