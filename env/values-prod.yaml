@@ -1,4 +1,4 @@
-txtOwnerId: "hq-prod-eks-cluster"
+txtOwnerId: "mine-prod-eks-cluster"
 
 # Limits ExternalDNS to only touch prod records
 domainFilter:

@@ -1,20 +1,20 @@
 aws_region    = "ap-southeast-1"
-naming_prefix = "hq-prod"
+naming_prefix = "mine-prod"
 
 cluster_config = {
-  name    = "hq-eks-cluster-prod"
+  name    = "mine-eks-cluster-prod"
   version = "1.32"
 }
 
 ecr_config = {
-  repo_name            = "hq-eks-repo-prod"
+  repo_name            = "mine-eks-repo-prod"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
   scan_on_push         = true
 }
 
 common_tags = {
-  Project     = "hq-venture"
+  Project     = "mine-venture"
   Stage       = "prod"
   Environment = "prod"
 }
@@ -29,13 +29,13 @@ networking = {
 
 security_groups = [
   {
-    name        = "hq-eks-nodes-sg"
+    name        = "mine-eks-nodes-sg"
     description = "Security group for worker nodes"
     ingress     = [{ description = "Internal", from_port = 0, to_port = 0, protocol = "-1", cidr_blocks = ["10.2.0.0/16"] }]
     egress      = [{ description = "All Out", from_port = 0, to_port = 0, protocol = "-1", cidr_blocks = ["0.0.0.0/0"] }]
   },
   {
-    name        = "hq-public-alb-sg"
+    name        = "mine-public-alb-sg"
     description = "Security group for the Load Balancer"
     ingress     = [{ description = "HTTP", from_port = 80, to_port = 80, protocol = "tcp", cidr_blocks = ["0.0.0.0/0"] }]
     egress      = [{ description = "To Nodes", from_port = 0, to_port = 0, protocol = "-1", cidr_blocks = ["10.2.0.0/16"] }]
@@ -44,7 +44,7 @@ security_groups = [
 
 node_groups = [
   {
-    name           = "hq-standard-nodes"
+    name           = "mine-standard-nodes"
     instance_types = ["t3.micro"]
     capacity_type  = "SPOT"
     scaling_config = { desired_size = 4, max_size = 6, min_size = 1 }

@@ -1,4 +1,4 @@
-txtOwnerId: "hq-dev-eks-cluster"
+txtOwnerId: "mine-dev-eks-cluster"
 
 # Limits ExternalDNS to only touch dev records
 domainFilter:

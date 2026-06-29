@@ -1,5 +1,5 @@
-bucket         = "hq-mightycapstone-terraform-state"
-key            = "state/prod/hq-terraform.tfstate"
+bucket         = "mine-mightycapstone-terraform-state"
+key            = "state/prod/mine-terraform.tfstate"
 region         = "ap-southeast-1"
-dynamodb_table = "hq-mightycapstone-terraform-locks"
+dynamodb_table = "mine-mightycapstone-terraform-locks"
 encrypt        = true

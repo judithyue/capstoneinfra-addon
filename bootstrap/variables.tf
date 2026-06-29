@@ -5,12 +5,12 @@ variable "aws_region" {
 
 variable "backend_bucket" {
   type    = string
-  default = "hq-mightycapstone-terraform-state"
+  default = "mine-mightycapstone-terraform-state"
 }
 
 variable "lock_table_name" {
   type    = string
-  default = "hq-mightycapstone-terraform-locks"
+  default = "mine-mightycapstone-terraform-locks"
 }
 
 variable "environment" {
@@ -21,6 +21,6 @@ variable "environment" {
 variable "common_tags" {
   type = map(string)
   default = {
-    Project = "hq-venture"
+    Project = "mine-venture"
   }
 }
