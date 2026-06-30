@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: voting-app-ingress
-  namespace: default
+  namespace: voting-app
   annotations:
     # triggers the aws lb controller to create ONE single Internet-facing ALB
     #kubernetes.io/ingress.class: alb
@@ -21,7 +21,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: vote-svc # Routes voting traffic to your vote service
+                name: vote # Routes voting traffic to your vote service
                 port:
                   number: 8080
     - host: result-dev.sctp-sandbox.com
@@ -31,6 +31,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: result-svc # Routes result traffic to your result service
+                name: result # Routes result traffic to your result service
                 port:
                   number: 8081
