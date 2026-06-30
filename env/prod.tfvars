@@ -47,7 +47,7 @@ node_groups = [
     name           = "mine-standard-nodes"
     instance_types = ["t3.micro"]
     capacity_type  = "SPOT"
-    scaling_config = { desired_size = 4, max_size = 6, min_size = 1 }
+    scaling_config = { desired_size = 6, max_size = 8, min_size = 2 }
     disk_size      = 20
     ami_type       = "AL2_x86_64"
   }
