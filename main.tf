@@ -482,17 +482,52 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
 }
 
 # Attach Administrative permissions to manage your ECR and EKS environments
-resource "aws_iam_role_policy_attachment" "github_ecr_poweruser" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+# 1. Define the precise, restricted permissions
+data "aws_iam_policy_document" "github_ecr_least_privilege" {
+  statement {
+    effect = "Allow"
+
+    # Actions needed to log in, read data, and push images
+    actions = [
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:PutImage"
+    ]
+
+    # Explicitly restrict this to ONLY your specific ECR repository
+    # TODO: Replace with your region, AWS Account ID, and Repository Name
+    resources = [
+      aws_ecr_repository.ecr.arn
+    ]
+  }
+
+  # Global authorization token request requires "*" because it is not repository-specific
+  statement {
+    effect    = "Allow"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+}
+
+# 2. Create the custom customer-managed policy
+resource "aws_iam_policy" "github_ecr_policy" {
+  name        = "${var.naming_prefix}-GitHubECRPushPolicy"
+  description = "Minimal permissions for GitHub Actions to push to a specific ECR repo"
+  policy      = data.aws_iam_policy_document.github_ecr_least_privilege.json
+}
+
+# 3. Attach your custom policy instead of the PowerUser one
+resource "aws_iam_role_policy_attachment" "github_ecr_restricted" {
+  policy_arn = aws_iam_policy.github_ecr_policy.arn
   role       = aws_iam_role.github_actions_role.name
 }
 
-# Output the exact Role ARN you need to paste into your GitHub Repository Secrets
-output "github_actions_role_arn" {
-  description = "Save this value into your GitHub secret named AWS_ROLE_TO_ASSUME"
-  value       = aws_iam_role.github_actions_role.arn
-}
-
+# eks policy
 # Create a custom policy allowing GitHub to read EKS Cluster metadata
 resource "aws_iam_policy" "github_eks_describe_policy" {
   name        = "${var.naming_prefix}-GitHubEKSDescribePolicy"
